@@ -1,17 +1,20 @@
 "use server";
 
 export type DiagnosisResult = {
-  plant_name: string;
+  plant_name_traditional: string;
+  plant_name_cnn: string;
   location: string;
   diseases_treated: string;
   preparation_methods: string;
-  uploaded_image: string; 
+  uploaded_image: string;
+  confidence: number;
+  top_3_predictions: { plant: string; confidence: number }[];
 };
 
 interface ImageData {
   base64: string;
   mimeType: string;
-  filename: string; 
+  filename: string;
 }
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5001";
@@ -29,7 +32,7 @@ export async function analyzeImage(imageData: ImageData): Promise<DiagnosisResul
     const blob = new Blob([byteArray], { type: imageData.mimeType });
 
     const formData = new FormData();
-    formData.append("image", blob, imageData.filename); // Include the filename here
+    formData.append("image", blob, imageData.filename);
 
     const response = await fetch(`${BACKEND_URL}/api/predict`, {
       method: "POST",
@@ -44,11 +47,14 @@ export async function analyzeImage(imageData: ImageData): Promise<DiagnosisResul
     const backendResult = await response.json();
 
     return {
-      plant_name: backendResult.plant_name,
-      location: backendResult.location,
-      diseases_treated: backendResult.diseases_treated,
-      preparation_methods: backendResult.preparation_methods,
-      uploaded_image: backendResult.uploaded_image || "", // Include the uploaded image
+      plant_name_traditional: backendResult.plant_name_traditional || "Unknown",
+      plant_name_cnn: backendResult.plant_name_cnn || "Unknown",
+      location: backendResult.location || "Unknown",
+      diseases_treated: backendResult.diseases_treated || "Not specified",
+      preparation_methods: backendResult.preparation_methods || "Not specified",
+      uploaded_image: backendResult.uploaded_image || "",
+      confidence: backendResult.confidence || 0,
+      top_3_predictions: backendResult.top_3_predictions || [],
     };
   } catch (error) {
     console.error("Error analyzing image with backend:", error);
@@ -59,8 +65,6 @@ export async function analyzeImage(imageData: ImageData): Promise<DiagnosisResul
 export async function processImageUpload(imageData: ImageData): Promise<void> {
   try {
     const result = await analyzeImage(imageData);
-
-    // Store the result globally, including the uploaded image
     globalThis.__DIAGNOSIS_RESULT__ = { ...result };
   } catch (error) {
     console.error("Error processing image:", error);
